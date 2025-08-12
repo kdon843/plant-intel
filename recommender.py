@@ -14,16 +14,39 @@ tests = [
     ("yellow rust", "wheat"),          # sometimes listed as stripe rust
     ("leaf mold", "tomato"),           # if tomato exists in your crawl
 ]
-# --- add these lines after your current DISEASE_SYNONYMS/HOST_SYNONYMS setup ---
-HOST_SYNONYMS.update({
-    "caneberries": "caneberry",
-})
+# =========================
+# Synonym dictionaries
+# =========================
 
-DISEASE_SYNONYMS.update({
-    "stripe rust": ["yellow rust", "wheat yellow rust"],
-    "black spot": ["rose black spot"],
-    "leaf mold": ["cladosporium leaf mold"],
-})
+# Host synonyms – maps alternate names to a single canonical form
+HOST_SYNONYMS = {
+    # from your original code
+    "bell": "bell pepper",
+    "pepper": "bell pepper",
+    "pepper bell": "bell pepper",
+    "orange": "citrus",
+
+    # additions for better coverage
+    "caneberries": "caneberry",   # plural to singular
+    "cane berry": "caneberry",
+    "grapes": "grape",            # plural to singular
+    "apples": "apple",            # plural to singular
+}
+
+# Disease synonyms – maps canonical disease names to lists of alternate spellings
+DISEASE_SYNONYMS = {
+    # from your original UCANR context
+    # (none explicitly listed in your old code, but this is how to define them)
+
+    # common aliasing in plant pathology
+    "stripe rust": ["yellow rust", "wheat yellow rust"],  # wheat
+    "black spot": ["rose black spot"],                    # rose
+    "leaf mold": ["cladosporium leaf mold"],               # tomato
+
+    # optional additional mappings if needed
+    "anthracnose": ["watermelon anthracnose", "bean anthracnose"],
+    "powdery mildew": ["oidium"],
+}
 
 # assumes you already have:
 # - rec_base, passages, details loaded
@@ -234,6 +257,7 @@ def load():
 
 def recommend(disease: str, host: Optional[str] = None, k: int = 3) -> List[Dict]:
     return recommend_for_disease(disease, host_hint=host, k=k, allow_other_hosts=True)
+
 
 
 
