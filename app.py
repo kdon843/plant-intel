@@ -1,43 +1,83 @@
-# ------------- Data status (no upload prompt) -------------
-st.subheader("Data status")
-c1, c2 = st.columns(2)
+# app.py — Plant Intel (simplified)
 
-with c1:
-    st.write("**Expected paths**")
-    st.code(f"LENIENT_PARQ : {E_LENIENT}")
-    st.code(f"PASS_PARQ    : {E_PASSAGES}")
-    st.code(f"DETAILS_PARQ : {E_DETAILS}")
+import os
+import streamlit as st
 
-with c2:
-    st.write("**File exists?**")
-    st.write(f"Lenient : {'✅' if os.path.exists(E_LENIENT) else '❌'}")
-    st.write(f"Passages: {'✅' if os.path.exists(E_PASSAGES) else '❌'}")
-    st.write(f"Details : {'✅' if os.path.exists(E_DETAILS) else '⚠️ (optional)'}")
+# Point recommender to your local Windows file BEFORE importing it
+os.environ["LENIENT_PARQ"] = r"C:\Users\kerim\Downloads\ucanr_nlp_dataset_lenient.parquet"
+# Optional, if you have these locally too:
+# os.environ["PASS_PARQ"]    = r"C:\Users\kerim\Downloads\ucanr_nlp_passages.parquet"
+# os.environ["DETAILS_PARQ"] = r"C:\Users\kerim\Downloads\ucanr_details.parquet"
 
-# Optional: one-click copy from C: to local path
-def _safe_copy(src, dst):
+import recommender as reco
+from PIL import Image  # used in image section
+
+st.set_page_config(page_title="Plant Intel", page_icon="🌿", layout="centered")
+
+@st.cache_resource
+def _init_reco():
+    # Loads CSV/Parquet, builds vocab & TF-IDF lazily
+    return reco.load()
+
+# Initialize recommender once
+try:
+    _init_reco()
+except Exception as e:
+    st.error(f"Failed to load recommender data: {e}")
+
+st.title("Plant Intel")
+
+# -------------------------
+# Text-based recommendation
+# -------------------------
+st.subheader("Text-based recommendation")
+col1, col2 = st.columns(2)
+with col1:
+    host = st.text_input("Host", value="tomato")
+with col2:
+    disease = st.text_input("Disease", value="late blight")
+
+if st.button("Get recommendations"):
     try:
-        if os.path.exists(src):
-            os.makedirs(os.path.dirname(dst), exist_ok=True)
-            import shutil
-            shutil.copy2(src, dst)
-            return True, f"Copied {src} → {dst}"
-        return False, f"Source does not exist: {src}"
+        recs = reco.recommend_for_disease(disease, host_hint=host, k=3)
+        if not recs:
+            st.warning("No recommendations found.")
+        else:
+            for r in recs:
+                st.markdown(f"**{r.get('host','?')} — {r.get('disease','?')}**")
+                stage = r.get("stage")
+                source = r.get("source")
+                if stage or source:
+                    st.caption(" • ".join([v for v in [stage, source] if v]))
+                if r.get("detail_url"):
+                    st.write(r["detail_url"])
+                st.write(r.get("management_snippet", "(no text)"))
+                st.divider()
     except Exception as e:
-        return False, f"Copy failed: {e}"
+        st.error(f"Recommender error: {e}")
+        st.exception(e)
 
-if E_LENIENT.startswith(("C:", "c:")):
-    if os.path.exists(E_LENIENT) and not os.path.exists(LOCAL_LENIENT):
-        if st.button("Copy lenient dataset into project folder"):
-            ok, msg = _safe_copy(E_LENIENT, LOCAL_LENIENT)
-            (st.success if ok else st.error)(msg)
-            st.info("Click 'Rerun' to reload once the file is copied.")
+# -------------------------
+# Image-based diagnosis
+# -------------------------
+st.subheader("Image-based diagnosis")
+uploaded = st.file_uploader("Upload a leaf photo", type=["jpg", "jpeg", "png"])
 
-# ------------- Stop if no dataset is found -------------
-ready = os.path.exists(E_LENIENT) or os.path.exists(E_PASSAGES) or os.path.exists(E_DETAILS)
-if not ready:
-    st.warning(
-        "No recommender data found yet. "
-        "Make sure the paths above exist on this machine."
-    )
-    st.stop()
+if uploaded is not None:
+    try:
+        img = Image.open(uploaded)
+        st.image(img, caption="Uploaded image", use_container_width=True)
+    except Exception:
+        st.error("Could not read image. Please upload a valid JPG/PNG.")
+        img = None
+
+    if img is not None and st.button("Predict from image"):
+        try:
+            # Your original app referenced models_service.predict_from_image
+            # Keep as-is if you already have that module wired up.
+            from models_service import predict_from_image
+            label, score, rec = predict_from_image(img)
+            st.success(f"Prediction: **{label}** (confidence: {score*100:.1f}%)")
+        except Exception as e:
+            st.error(f"Image prediction error: {e}")
+            st.exception(e)
