@@ -4,6 +4,26 @@ from typing import Optional, List, Dict
 
 # --- make sure these imports are at top of recommender.py ---
 import re, numpy as np, pandas as pd
+tests = [
+    ("yellow rust", "caneberry"),
+    ("downy mildew", "caneberry"),
+    ("black spot", "rose"),
+    ("black rot", "grape"),
+    ("brown spot", "rice"),
+    ("apple scab", "apple"),
+    ("yellow rust", "wheat"),          # sometimes listed as stripe rust
+    ("leaf mold", "tomato"),           # if tomato exists in your crawl
+]
+# --- add these lines after your current DISEASE_SYNONYMS/HOST_SYNONYMS setup ---
+HOST_SYNONYMS.update({
+    "caneberries": "caneberry",
+})
+
+DISEASE_SYNONYMS.update({
+    "stripe rust": ["yellow rust", "wheat yellow rust"],
+    "black spot": ["rose black spot"],
+    "leaf mold": ["cladosporium leaf mold"],
+})
 
 # assumes you already have:
 # - rec_base, passages, details loaded
@@ -214,6 +234,7 @@ def load():
 
 def recommend(disease: str, host: Optional[str] = None, k: int = 3) -> List[Dict]:
     return recommend_for_disease(disease, host_hint=host, k=k, allow_other_hosts=True)
+
 
 
 
