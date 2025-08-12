@@ -91,25 +91,6 @@ def predict_from_image(img, endpoint_name=None):
     except ClientError:
         raise
 
-# app.py or models_service.py
-import json, pathlib
-
-def load_labels():
-    p = pathlib.Path(__file__).with_name("labels.json")
-    return json.loads(p.read_text(encoding="utf-8"))
-
-LABELS = load_labels()
-
-def idx_to_name(idx):
-    return LABELS[idx] if 0 <= idx < len(LABELS) else f"class_{idx}"
-
-def humanize(label_str):
-    if isinstance(label_str, str) and label_str.startswith("class_"):
-        try:
-            return idx_to_name(int(label_str.split("_")[1]))
-        except Exception:
-            pass
-    return label_str
 
 
 
