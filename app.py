@@ -17,9 +17,8 @@ LOCAL_LENIENT  = "data/ucanr/parsed/nlp/ucanr_nlp_dataset_lenient.parquet"
 LOCAL_PASSAGES = "data/ucanr/parsed/nlp/ucanr_nlp_passages.parquet"
 LOCAL_DETAILS  = "data/ucanr/parsed/ucanr_details.parquet"
 # Ensure local folders exist for all datasets
-for p in (LOCAL_LENIENT, LOCAL_PASSAGES, LOCAL_DETAILS):
-    os.makedirs(os.path.dirname(p), exist_ok=True)
-)
+os.makedirs(os.path.dirname(p), exist_ok=True
+
 
 # Helper to read the *effective* paths recommender will use
 def _effective_path(env_key: str, local_default: str):
