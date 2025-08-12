@@ -1,7 +1,7 @@
 import io
 from PIL import Image
 import streamlit as st
-from models_service import predict_from_image, predict_from_text
+from models_service import predict_from_image
 
 st.set_page_config(page_title="Plant Intel", page_icon="🌿")
 st.title("Plant Intel")
