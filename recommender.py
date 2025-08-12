@@ -17,6 +17,9 @@ tests = [
 # =========================
 # Synonym dictionaries
 # =========================
+def _strip_parens(s: str) -> str:
+    """Remove any text in parentheses from a string."""
+    return re.sub(r"\s*\(.*?\)\s*", "", s or "").strip()
 
 # Host synonyms – maps alternate names to a single canonical form
 HOST_SYNONYMS = {
@@ -257,6 +260,7 @@ def load():
 
 def recommend(disease: str, host: Optional[str] = None, k: int = 3) -> List[Dict]:
     return recommend_for_disease(disease, host_hint=host, k=k, allow_other_hosts=True)
+
 
 
 
