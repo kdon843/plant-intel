@@ -1,46 +1,42 @@
-import io, os, json
+# models_service.py
+import os
+import streamlit as st
 import boto3
-from PIL import Image
-from config import SETTINGS
+from botocore.exceptions import NoCredentialsError, ClientError
 
-_runtime = boto3.client("sagemaker-runtime", region_name=SETTINGS["AWS_REGION"])
+def get_runtime():
+    # Prefer Streamlit secrets; fall back to env vars
+    ak = st.secrets.get("AWS_ACCESS_KEY_ID", os.getenv("AWS_ACCESS_KEY_ID"))
+    sk = st.secrets.get("AWS_SECRET_ACCESS_KEY", os.getenv("AWS_SECRET_ACCESS_KEY"))
+    tk = st.secrets.get("AWS_SESSION_TOKEN", os.getenv("AWS_SESSION_TOKEN"))  # optional
+    region = st.secrets.get("AWS_REGION", os.getenv("AWS_REGION", "us-east-1"))
 
-def _recommendation_for(label: str) -> str:
-    recs = {
-        "tomato_healthy": "No treatment needed. Maintain spacing, irrigate at soil level, and monitor weekly.",
-        "tomato_blight": "Prune infected leaves, avoid overhead watering, and apply copper/chlorothalonil per label.",
-        "powdery_mildew": "Improve airflow, remove affected leaves, and apply sulfur-based fungicide as directed.",
-    }
-    return recs.get(label, "Follow IPM: isolate plant, prune, improve airflow, rotate crops, consult extension office.")
+    if not (ak and sk):
+        raise NoCredentialsError()
 
-def predict_from_image(image: Image.Image):
-    if SETTINGS["USE_STUB"]:
-        return "tomato_blight", 0.92, _recommendation_for("tomato_blight")
-
-    buf = io.BytesIO()
-    image.save(buf, format="JPEG", quality=90)
-    payload = buf.getvalue()
-
-    resp = _runtime.invoke_endpoint(
-        EndpointName=SETTINGS["IMG_ENDPOINT"],
-        ContentType="application/x-image",
-        Body=payload,
+    sess = boto3.Session(
+        aws_access_key_id=ak,
+        aws_secret_access_key=sk,
+        aws_session_token=tk,
+        region_name=region,
     )
-    result = json.loads(resp["Body"].read())
-    label = result.get("label", "unknown")
-    score = float(result.get("score", 0.0))
-    return label, score, _recommendation_for(label)
+    return sess.client("sagemaker-runtime")
 
-def predict_from_text(text: str):
-    if SETTINGS["USE_STUB"]:
-        return "powdery_mildew", 0.88, _recommendation_for("powdery_mildew")
+def predict_from_image(img_bytes, endpoint_name=None):
+    rt = get_runtime()
+    endpoint = endpoint_name or st.secrets.get("IMG_ENDPOINT", os.getenv("IMG_ENDPOINT"))
+    if not endpoint:
+        raise ValueError("IMG_ENDPOINT is not set.")
+    try:
+        resp = rt.invoke_endpoint(
+            EndpointName=endpoint,
+            ContentType="application/x-image",
+            Body=img_bytes,
+        )
+        body = resp["Body"].read()
+        # parse your model's response here...
+        return body
+    except ClientError as e:
+        # surface a concise error in the UI
+        raise
 
-    resp = _runtime.invoke_endpoint(
-        EndpointName=SETTINGS["NLP_ENDPOINT"],
-        ContentType="application/json",
-        Body=json.dumps({"text": text}),
-    )
-    result = json.loads(resp["Body"].read())
-    label = result.get("label", "unknown")
-    score = float(result.get("score", 0.0))
-    return label, score, _recommendation_for(label)
