@@ -17,6 +17,13 @@ tests = [
 # =========================
 # Synonym dictionaries
 # =========================
+# Build disease vocabulary from all available data
+DISEASE_VOCAB = sorted(
+    set(rec_base["_dis_norm"].dropna().tolist()) |
+    set(passages["_dis_norm"].dropna().tolist()) |
+    (set(details["_dis_norm"].dropna().tolist()) if details is not None else set())
+)
+
 def _strip_parens(s: str) -> str:
     """Remove any text in parentheses from a string."""
     return re.sub(r"\s*\(.*?\)\s*", "", s or "").strip()
@@ -260,6 +267,7 @@ def load():
 
 def recommend(disease: str, host: Optional[str] = None, k: int = 3) -> List[Dict]:
     return recommend_for_disease(disease, host_hint=host, k=k, allow_other_hosts=True)
+
 
 
 
