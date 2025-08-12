@@ -105,6 +105,36 @@ def details_fallback(disease, host_hint=None, k=1, allow_other_hosts=False, min_
         })
     return out
 
+def normalize_disease_alias(name: str) -> str:
+    n = norm_dis(name) or ""
+    # Apply your synonym map if present
+    for canon, alts in DISEASE_SYNONYMS.items():
+        c = norm_dis(canon) or ""
+        if n == c or n in [norm_dis(a) for a in alts]:
+            return c
+    return n
+
+def disease_candidates(query: str, top_k: int = 6, strong: int = 90, weak: int = 80):
+    n = normalize_disease_alias(query)
+    base = {n, _strip_parens(n)}
+    # Exact/paren-equal match
+    hits = {d for d in DISEASE_VOCAB if d in base or _strip_parens(d) in base or _strip_parens(n) == _strip_parens(d)}
+    if hits:
+        return sorted(hits)
+    # Fuzzy
+    if _HAS_RF and DISEASE_VOCAB:
+        cand = process.extract(n, DISEASE_VOCAB, scorer=fuzz.token_set_ratio, limit=top_k)
+        good = {d for d, score, _ in cand if score >= strong} or {d for d, score, _ in cand if score >= weak}
+        if good:
+            return sorted(good)
+    else:
+        import difflib
+        scores = [(d, int(100 * difflib.SequenceMatcher(None, n, d).ratio())) for d in DISEASE_VOCAB]
+        scores.sort(key=lambda x: x[1], reverse=True)
+        good = {d for d, s in scores[:top_k] if s >= 85}
+        if good:
+            return sorted(good)
+    return [n]
 
 def recommend_for_disease(disease: str, host_hint: str | None = None, k: int = 1,
                           min_chars: int = 120, allow_other_hosts: bool = True):
@@ -174,4 +204,5 @@ def load():
 
 def recommend(disease: str, host: Optional[str] = None, k: int = 3) -> List[Dict]:
     return recommend_for_disease(disease, host_hint=host, k=k, allow_other_hosts=True)
+
 
