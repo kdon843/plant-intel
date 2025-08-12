@@ -13,7 +13,7 @@ if mode == "Image":
     file = st.file_uploader("Upload a leaf/plant photo", type=["jpg","jpeg","png","webp"])
     if file:
         img = Image.open(file).convert("RGB")
-        st.image(img, caption="Preview", use_column_width=True)
+        st.image(img, caption="Preview", use_container_width=True)
         if st.button("Diagnose image"):
             with st.spinner("Running image model…"):
                 label, score, rec = predict_from_image(img)
