@@ -8,6 +8,11 @@ import re, numpy as np, pandas as pd
 # assumes you already have:
 # - rec_base, passages, details loaded
 # - norm_host, disease_candidates, _ensure_tfidf, _TFIDF, _X, _trunc
+def canonicalize_term(term):
+    if term is None:
+        return None
+    t = re.sub(r"[_\-]+", " ", str(term).strip().lower())
+    return re.sub(r"\s+", " ", t).strip()
 
 def tfidf_fallback(disease, host_hint=None, top_k=1, allow_other_hosts=False):
     _ensure_tfidf()
@@ -104,6 +109,11 @@ def details_fallback(disease, host_hint=None, k=1, allow_other_hosts=False, min_
             "stage": f"details ({scope})",
         })
     return out
+def norm_dis(d):
+    """Normalize disease name by lowercasing, trimming, replacing underscores/hyphens."""
+    if d is None or (isinstance(d, float) and pd.isna(d)):
+        return None
+    return canonicalize_term(d)
 
 def normalize_disease_alias(name: str) -> str:
     n = norm_dis(name) or ""
@@ -204,5 +214,6 @@ def load():
 
 def recommend(disease: str, host: Optional[str] = None, k: int = 3) -> List[Dict]:
     return recommend_for_disease(disease, host_hint=host, k=k, allow_other_hosts=True)
+
 
 
