@@ -29,31 +29,5 @@ elif mode == "Text":
         st.markdown(f"**Recommendation:** {rec}")
 
 # app.py (snippet)
-# app.py
-import streamlit as st
-import pandas as pd
-import recommender as reco
 
-st.title("Plant Intel")
-
-@st.cache_resource
-def _init_reco():
-    return reco.load()
-
-_init_reco()
-
-host = st.text_input("Host", value="tomato")
-disease = st.text_input("Disease", value="late blight")
-k = st.slider("How many suggestions?", 1, 5, 3)
-
-if st.button("Get recommendations"):
-    res = reco.recommend(disease=disease, host=host, k=k)
-    if not res:
-        st.warning("No matches found.")
-    for r in res:
-        st.markdown(f"**{r.get('host','?')} — {r.get('disease','?')}**")
-        st.caption(f"{r.get('stage','')} • {r.get('source','')}")
-        if r.get("detail_url"):
-            st.write(r["detail_url"])
-        st.write(r.get("management_snippet","(no text)"))
-        st.divider()
+   
