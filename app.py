@@ -1,5 +1,20 @@
 import streamlit as st
 from recommender import recommend_for_disease  # or from models_service import predict_from_image
+# app.py
+import os
+os.environ["LENIENT_PARQ"] = r"C:\Users\kerim\Downloads\ucanr_nlp_dataset_lenient.parquet"
+# Optional, if you have them:
+# os.environ["PASS_PARQ"]    = r"C:\Users\kerim\Downloads\ucanr_nlp_passages.parquet"
+# os.environ["DETAILS_PARQ"] = r"C:\Users\kerim\Downloads\ucanr_details.parquet"
+
+import streamlit as st
+import recommender as reco
+
+@st.cache_resource
+def _init_reco():
+    return reco.load()
+
+_init_reco()
 
 st.title("Plant Intel")
 
