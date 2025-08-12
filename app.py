@@ -28,6 +28,42 @@ elif mode == "Text":
         st.success(f"Predicted disease: **{label}**  (confidence: {score:.1%})")
         st.markdown(f"**Recommendation:** {rec}")
 
+# app.py (snippet)
+import streamlit as st
+import recommender  # the module above
+
+st.title("Plant Intel")
+
+@st.cache_resource
+def _init_recommender():
+    recommender.load()
+    return True
+
+_init_recommender()
+
+st.subheader("Text-based recommendation")
+col1, col2 = st.columns(2)
+with col1:
+    host = st.text_input("Host (e.g., tomato, bell pepper)", value="tomato")
+with col2:
+    disease = st.text_input("Disease (e.g., late blight)", value="late blight")
+
+k = st.slider("How many suggestions?", 1, 5, 3)
+
+if st.button("Get recommendations"):
+    try:
+        results = recommender.recommend(disease=disease, host=host, k=k)
+        if not results:
+            st.warning("No matches found. Try a simpler disease name.")
+        for r in results:
+            st.markdown(f"**{r.get('host','?')} — {r.get('disease','?')}**")
+            if r.get("detail_url"):
+                st.write(r["detail_url"])
+            st.caption(f"Source: {r.get('source','')}")
+            st.write(r.get("management_snippet","(no text)"))
+            st.divider()
+    except Exception as e:
+        st.error(f"Recommender error: {e}")
 
 label, score, rec = predict_from_image(img)
 label = humanize(label)
