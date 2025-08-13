@@ -138,9 +138,15 @@ def _read_any_df(path: str | None) -> pd.DataFrame | None:
         # Keep it quiet for Streamlit, you’ll see a clear message if nothing loads at all.
         return None
 
-def _load_frame(parq_path: str | None, csv_path: str | None) -> pd.DataFrame | None:
-    return _read_any_df(parq_path) or _read_any_df(csv_path)
 
+def _load_frame(parq_path: str | None, csv_path: str | None) -> pd.DataFrame | None:
+    df1 = _read_any_df(parq_path)
+    if df1 is not None:
+        return df1
+    df2 = _read_any_df(csv_path)
+    if df2 is not None:
+        return df2
+    return None
 
 
 # Label map (for NLP endpoint class IDs)
@@ -264,9 +270,9 @@ def load() -> bool:
     if _LOADED:
         return True
 
-    rb = _load_frame(LENIENT_PARQ, LENIENT_CSV)     # DataFrame or None
-    ps = _load_frame(PASS_PARQ, PASS_CSV)           # DataFrame or None
-    dt = _load_frame(DETAILS_PARQ, DETAILS_CSV)     # DataFrame or None
+    rb = _load_frame(LENIENT_PARQ, LENIENT_CSV)     
+    ps = _load_frame(PASS_PARQ, PASS_CSV)           
+    dt = _load_frame(DETAILS_PARQ, DETAILS_CSV)     
 
     def _is_empty(df):
         return (df is None) or (isinstance(df, _pd.DataFrame) and df.empty)
@@ -581,6 +587,7 @@ def recommend_from_text(text: str, host_hint: str | None = None, k: int = 1) -> 
     # Pick the best disease and recommend
     top_label = pairs[0][0]
     return recommend_for_disease(top_label, host_hint=host_hint, k=k)
+
 
 
 
