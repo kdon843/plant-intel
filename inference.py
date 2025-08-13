@@ -9,7 +9,7 @@ from collections import OrderedDict
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 IMG_SIZE = 224
 
-# ---------- helpers ----------
+# helpers 
 def _unwrap_state_dict(raw):
     """Unwrap common checkpoint containers and strip DDP/Lightning prefixes."""
     classes = None
@@ -65,7 +65,7 @@ def _load_classes(model_dir, sd_classes):
                 return [inv[i] for i in sorted(inv)]
     raise RuntimeError("No class names found in checkpoint or model_dir.")
 
-# ---------- SageMaker model server hooks ----------
+#SageMaker model server hooks 
 def model_fn(model_dir):
     # Find a .pth/.pt inside /opt/ml/model
     ckpts = glob.glob(os.path.join(model_dir, "**", "*.pth"), recursive=True) + \
