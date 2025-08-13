@@ -1,6 +1,6 @@
 # recommender.py — Streamlit-ready recommender + optional NLP classify
 # - Lazy loads data (fast app start)
-# - Reads from local files OR S3 (set env vars to s3://... if desired)
+# - Reads from S3
 # - Optional SageMaker NLP endpoint for text->disease; fuzzy fallback if absent
 # - Friendly errors for Streamlit
 
@@ -8,15 +8,7 @@ import os, re, io, json, typing as T
 import numpy as np
 import pandas as pd
 
-# =========================
-# Config: paths (local OR s3://)
-# You can point these to local files OR s3:// URIs.
-# Example (S3):
-#   LENIENT_PARQ = "s3://capstone-plant-data/Capstone_Data/nlp/recs_model/ucanr_nlp_dataset.parquet"
-#   PASS_PARQ    = "s3://capstone-plant-data/Capstone_Data/datasets/nlp/ucanr_nlp_passages.parquet"
-#   DETAILS_PARQ = "s3://capstone-plant-data/Capstone_Data/parsed/ucanr_details.parquet"
-# If parquet isn’t available, set the CSV env var instead.
-# =========================
+
 LENIENT_PARQ = os.getenv("LENIENT_PARQ", "data/ucanr/parsed/nlp/ucanr_nlp_dataset_lenient.parquet")
 LENIENT_CSV  = os.getenv("LENIENT_CSV",  "data/ucanr/parsed/nlp/ucanr_nlp_dataset_lenient.csv")
 PASS_PARQ    = os.getenv("PASS_PARQ",    "data/ucanr/parsed/nlp/ucanr_nlp_passages.parquet")
@@ -24,16 +16,12 @@ PASS_CSV     = os.getenv("PASS_CSV",     "data/ucanr/parsed/nlp/ucanr_nlp_passag
 DETAILS_PARQ = os.getenv("DETAILS_PARQ", "data/ucanr/parsed/ucanr_details.parquet")
 DETAILS_CSV  = os.getenv("DETAILS_CSV",  "")  # optional CSV fallback for details
 
-# Optional NLP classifier via SageMaker endpoint
 NLP_ENDPOINT = os.getenv("NLP_ENDPOINT", "").strip()
 
-# Optional label map for NLP endpoint outputs (e.g., mapping class_36 -> "Rose Black Spot")
-# Path can be local OR s3://; file should be JSON like {"class_0":"Apple___Apple_scab", ...}
 NLP_LABELS_JSON = os.getenv("NLP_LABELS_JSON", "artifacts/models/nlp_distilbert/labels.json")
 
-# =========================
-# Globals (lazy init)
-# =========================
+
+# Globals 
 rec_base: pd.DataFrame | None = None
 passages: pd.DataFrame | None = None
 details:  pd.DataFrame | None = None
@@ -44,7 +32,7 @@ _X = None
 _LABEL_MAP: dict[str, str] | None = None
 _LOADED = False
 
-# RapidFuzz (optional, falls back to difflib)
+# RapidFuzz (falls back to difflib)
 try:
     from rapidfuzz import fuzz, process
     _HAS_RF = True
@@ -53,9 +41,8 @@ except Exception:
     fuzz = process = None  # type: ignore
 
 
-# =========================
+
 # String utils / normalization
-# =========================
 def canonicalize_term(term: T.Optional[T.Any]) -> T.Optional[str]:
     if term is None or (isinstance(term, float) and pd.isna(term)):
         return None
@@ -76,9 +63,7 @@ def humanize(name: str | None) -> str | None:
     return re.sub(r"\s+", " ", s).strip().title()
 
 
-# =========================
 # Synonyms (expand as needed)
-# =========================
 HOST_SYNONYMS = {
     "bell": "bell pepper",
     "pepper": "bell pepper",
@@ -106,9 +91,7 @@ def humanize(name: str | None) -> str | None:
     s = str(name).replace("___", " — ").replace("__", " — ").replace("_", " ")
     return re.sub(r"\s+", " ", s).strip().title()
 
-# =========================
 # I/O helpers (local + S3)
-# =========================
 def _is_s3(path: str) -> bool:
     return isinstance(path, str) and path.startswith("s3://")
 
@@ -159,9 +142,8 @@ def _load_frame(parq_path: str | None, csv_path: str | None) -> pd.DataFrame | N
     return _read_any_df(parq_path) or _read_any_df(csv_path)
 
 
-# =========================
+
 # Label map (for NLP endpoint class IDs)
-# =========================
 def _load_label_map() -> dict[str, str]:
     global _LABEL_MAP
     if _LABEL_MAP is not None:
@@ -191,9 +173,8 @@ def _load_label_map() -> dict[str, str]:
     return _LABEL_MAP
 
 
-# =========================
+
 # Data loading (lazy)
-# =========================
 def load() -> bool:
     """Load datasets once, add normalized columns, and build DISEASE_VOCAB."""
     global rec_base, passages, details, DISEASE_VOCAB, _LOADED
@@ -237,14 +218,8 @@ def load() -> bool:
     _LOADED = True
     return True
 
-def _ensure_loaded():
-    if not _LOADED:
-        load()
 
-
-# =========================
 # Candidate generation
-# =========================
 def normalize_disease_alias(name: str) -> str:
     n = norm_dis(name) or ""
     for canon, alts in DISEASE_SYNONYMS.items():
@@ -280,29 +255,82 @@ def disease_candidates(query: str, top_k: int = 6, strong: int = 90, weak: int =
     return [n]
 
 
-# =========================
-# TF-IDF index (lazy)
-# =========================
+
+def load() -> bool:
+    """Load datasets once, add normalized columns, and build DISEASE_VOCAB."""
+    import pandas as _pd
+    global rec_base, passages, details, DISEASE_VOCAB, _LOADED
+
+    if _LOADED:
+        return True
+
+    rb = _load_frame(LENIENT_PARQ, LENIENT_CSV)     # DataFrame or None
+    ps = _load_frame(PASS_PARQ, PASS_CSV)           # DataFrame or None
+    dt = _load_frame(DETAILS_PARQ, DETAILS_CSV)     # DataFrame or None
+
+    def _is_empty(df):
+        return (df is None) or (isinstance(df, _pd.DataFrame) and df.empty)
+
+    if _is_empty(rb) and _is_empty(ps) and _is_empty(dt):
+        raise FileNotFoundError(
+            "No recommender data found. Set LENIENT_PARQ/CSV, PASS_PARQ/CSV, DETAILS_PARQ/CSV "
+            "to local paths or s3:// URIs."
+        )
+
+    # Normalize columns on each non-empty frame
+    for df in (rb, ps, dt):
+        if isinstance(df, _pd.DataFrame) and not df.empty:
+            if "host" in df.columns:
+                df["_host_norm"] = df["host"].map(norm_host)
+            if "disease" in df.columns:
+                df["_dis_norm"] = df["disease"].map(norm_dis)
+            if ("disease_common" in df.columns) and ("_dis_norm" not in df.columns):
+                df["_dis_norm"] = df["disease_common"].map(norm_dis)
+
+    rec_base = rb if isinstance(rb, _pd.DataFrame) else _pd.DataFrame()
+    passages = ps if isinstance(ps, _pd.DataFrame) else _pd.DataFrame()
+    details  = dt if isinstance(dt, _pd.DataFrame) else _pd.DataFrame()
+
+    # Build disease vocab from available frames
+    vocab = set()
+    if isinstance(rec_base, _pd.DataFrame) and (not rec_base.empty) and ("_dis_norm" in rec_base.columns):
+        vocab |= set(rec_base["_dis_norm"].dropna())
+    if isinstance(passages, _pd.DataFrame) and (not passages.empty) and ("_dis_norm" in passages.columns):
+        vocab |= set(passages["_dis_norm"].dropna())
+    if isinstance(details, _pd.DataFrame) and (not details.empty) and ("_dis_norm" in details.columns):
+        vocab |= set(details["_dis_norm"].dropna())
+
+    DISEASE_VOCAB = sorted(vocab) if vocab else []
+    _LOADED = True
+    return True
+
+def _ensure_loaded():
+    if not _LOADED:
+        load()
+
 def _ensure_tfidf():
+    """Build TF-IDF index once. Return True if available, else False."""
+    import pandas as _pd
     _ensure_loaded()
     global _TFIDF, _X
-    if _TFIDF is None or _X is None:
-        if passages is None or passages.empty or "text" not in passages.columns:
-            raise RuntimeError(
-                "Passages data (with a 'text' column) is required for TF-IDF fallback. "
-                "Set PASS_PARQ/CSV to a file that includes a 'text' column."
-            )
-        from sklearn.feature_extraction.text import TfidfVectorizer
-        texts = passages["text"].fillna("").astype(str).tolist()
-        _TFIDF = TfidfVectorizer(ngram_range=(1,2), min_df=1, max_features=150_000)
-        _X = _TFIDF.fit_transform(texts)
+    if (_TFIDF is not None) and (_X is not None):
+        return True
+    if (not isinstance(passages, _pd.DataFrame)) or passages.empty or ("text" not in passages.columns):
+        return False
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    texts = passages["text"].fillna("").astype(str).tolist()
+    _TFIDF = TfidfVectorizer(ngram_range=(1, 2), min_df=1, max_features=150_000)
+    _X = _TFIDF.fit_transform(texts)
+    return True
 
-
-# =========================
-# Fallback recommenders
-# =========================
 def tfidf_fallback(disease: str, host_hint: str | None = None, top_k: int = 1, allow_other_hosts: bool = False) -> list[dict]:
-    _ensure_tfidf()
+    import numpy as _np
+    import pandas as _pd
+    from sklearn.metrics.pairwise import linear_kernel
+
+    if not _ensure_tfidf():
+        return []
+
     dns = disease_candidates(disease)
     hn  = norm_host(host_hint) if host_hint else None
 
@@ -310,9 +338,9 @@ def tfidf_fallback(disease: str, host_hint: str | None = None, top_k: int = 1, a
     scope = "unscoped"
     matched_host = None
 
-    if hn:
+    if hn is not None:
         h_cand = cand[cand["_host_norm"] == hn]
-        if not h_cand.empty:
+        if isinstance(h_cand, _pd.DataFrame) and (not h_cand.empty):
             cand = h_cand
             scope = "host-strict"
             matched_host = hn
@@ -321,14 +349,13 @@ def tfidf_fallback(disease: str, host_hint: str | None = None, top_k: int = 1, a
         else:
             scope = "other-host"
 
-    if cand.empty:
+    if (not isinstance(cand, _pd.DataFrame)) or cand.empty:
         return []
 
-    from sklearn.metrics.pairwise import linear_kernel
     q = f"{(host_hint or '')} {disease} management control treatment".strip()
     qv = _TFIDF.transform([q])
     sims = linear_kernel(qv, _X[cand.index])[0]
-    idx = np.argsort(-sims)[:top_k]
+    idx = _np.argsort(-sims)[:top_k]
     picks = cand.iloc[idx]
 
     out: list[dict] = []
@@ -347,20 +374,22 @@ def tfidf_fallback(disease: str, host_hint: str | None = None, top_k: int = 1, a
         })
     return out
 
-
 def details_fallback(disease: str, host_hint: str | None = None, k: int = 1, allow_other_hosts: bool = False, min_chars: int = 60) -> list[dict]:
+    import pandas as _pd
     _ensure_loaded()
-    if details is None or details.empty:
+
+    if (not isinstance(details, _pd.DataFrame)) or details.empty:
         return []
+
     dns = disease_candidates(disease)
     hn  = norm_host(host_hint) if host_hint else None
     cand = details[details["_dis_norm"].isin(dns)].copy()
     scope = "unscoped"
     matched_host = None
 
-    if hn:
+    if hn is not None:
         h_cand = cand[cand["_host_norm"] == hn]
-        if not h_cand.empty:
+        if (isinstance(h_cand, _pd.DataFrame)) and (not h_cand.empty):
             cand = h_cand
             scope = "host-strict"
             matched_host = hn
@@ -373,7 +402,8 @@ def details_fallback(disease: str, host_hint: str | None = None, k: int = 1, all
         return []
 
     def _score(r):
-        mg = len(str(r.get("management") or "")); sy = len(str(r.get("symptoms") or "")); return mg*2 + sy
+        mg = len(str(r.get("management") or "")); sy = len(str(r.get("symptoms") or ""))
+        return mg*2 + sy
 
     cand["__score"] = cand.apply(_score, axis=1)
     picks = cand.sort_values("__score", ascending=False).head(k)
@@ -397,9 +427,9 @@ def details_fallback(disease: str, host_hint: str | None = None, k: int = 1, all
     return out
 
 
-# =========================
+
+
 # Main API (disease -> recommendations)
-# =========================
 def recommend_for_disease(disease: str, host_hint: str | None = None, k: int = 1,
                           min_chars: int = 120, allow_other_hosts: bool = True) -> list[dict]:
     """Order: lenient dataset (strict host when possible) → TF-IDF over passages → raw details."""
@@ -461,9 +491,7 @@ def recommend(disease: str, host: str | None = None, k: int = 3) -> list[dict]:
     return recommend_for_disease(disease, host_hint=host, k=k, allow_other_hosts=True)
 
 
-# =========================
 # NLP: text -> disease (endpoint or fuzzy fallback)
-# =========================
 def _classify_text_via_endpoint(text: str, top_k: int = 3) -> list[tuple[str, float]]:
     """Call a SageMaker inference endpoint for text -> label(s). Returns [(label, score), ...]."""
     import boto3
@@ -553,5 +581,6 @@ def recommend_from_text(text: str, host_hint: str | None = None, k: int = 1) -> 
     # Pick the best disease and recommend
     top_label = pairs[0][0]
     return recommend_for_disease(top_label, host_hint=host_hint, k=k)
+
 
 
