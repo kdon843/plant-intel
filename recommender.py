@@ -12,7 +12,7 @@ import pandas as pd
 # Config: paths (local OR s3://)
 # You can point these to local files OR s3:// URIs.
 # Example (S3):
-#   LENIENT_PARQ = "s3://capstone-plant-data/Capstone_Data/datasets/nlp/ucanr_nlp_dataset_lenient.parquet"
+LENIENT_PARQ = "s3://capstone-plant-data/Capstone_Data/nlp/recs_model/ucanr_nlp_dataset.parquet"
 #   PASS_PARQ    = "s3://capstone-plant-data/Capstone_Data/datasets/nlp/ucanr_nlp_passages.parquet"
 #   DETAILS_PARQ = "s3://capstone-plant-data/Capstone_Data/parsed/ucanr_details.parquet"
 # If parquet isn’t available, set the CSV env var instead.
@@ -101,6 +101,10 @@ DISEASE_SYNONYMS = {
 def norm_host(h): return HOST_SYNONYMS.get(canonicalize_term(h), canonicalize_term(h))
 def norm_dis(d):  return canonicalize_term(d)
 
+def humanize(name: str | None) -> str | None:
+    if name is None: return None
+    s = str(name).replace("___", " — ").replace("__", " — ").replace("_", " ")
+    return re.sub(r"\s+", " ", s).strip().title()
 
 # =========================
 # I/O helpers (local + S3)
@@ -549,3 +553,4 @@ def recommend_from_text(text: str, host_hint: str | None = None, k: int = 1) -> 
     # Pick the best disease and recommend
     top_label = pairs[0][0]
     return recommend_for_disease(top_label, host_hint=host_hint, k=k)
+
