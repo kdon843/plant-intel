@@ -17,7 +17,7 @@ DETAILS_PARQ = os.getenv("DETAILS_PARQ", "data/ucanr/parsed/ucanr_details.parque
 DETAILS_CSV  = os.getenv("DETAILS_CSV",  "")  # optional CSV fallback for details
 
 NLP_ENDPOINT = os.getenv("NLP_ENDPOINT", "").strip()
-
+NLP_REGION = os.getenv("NLP_REGION", "").strip() or None
 NLP_LABELS_JSON = os.getenv("NLP_LABELS_JSON", "artifacts/models/nlp_distilbert/labels.json")
 
 
@@ -501,6 +501,7 @@ def recommend(disease: str, host: str | None = None, k: int = 3) -> list[dict]:
 def _classify_text_via_endpoint(text: str, top_k: int = 3) -> list[tuple[str, float]]:
     """Call a SageMaker inference endpoint for text -> label(s). Returns [(label, score), ...]."""
     import boto3
+    rt = boto3.client("sagemaker-runtime", region_name=NLP_REGION) if NLP_REGION else boto3.client("sagemaker-runtime")
     if not NLP_ENDPOINT:
         raise RuntimeError("NLP_ENDPOINT is not set. Either set it or use fuzzy fallback.")
     rt = boto3.client("sagemaker-runtime")
@@ -587,6 +588,7 @@ def recommend_from_text(text: str, host_hint: str | None = None, k: int = 1) -> 
     # Pick the best disease and recommend
     top_label = pairs[0][0]
     return recommend_for_disease(top_label, host_hint=host_hint, k=k)
+
 
 
 
