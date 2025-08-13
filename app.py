@@ -1,30 +1,16 @@
 # app.py — Plant Intel (Streamlit)
 import os
-# Quiet TensorFlow logs and force PyTorch path for transformers (optional but nice)
+# Quiet TensorFlow logs and force PyTorch path for transformers
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
 
-# ---- Point recommender to data (local paths OR s3:// URIs). Examples: ----
-# Local (Windows):
-# os.environ["LENIENT_PARQ"] = r"C:\Users\kerim\Downloads\ucanr_nlp_dataset_lenient.parquet"
-# os.environ["PASS_PARQ"]    = r"C:\Users\kerim\Downloads\ucanr_nlp_passages.parquet"
-# os.environ["DETAILS_PARQ"] = r"C:\Users\kerim\Downloads\ucanr_details.parquet"
-#
-# Or S3:
-# os.environ["LENIENT_PARQ"] = "s3://capstone-plant-data/Capstone_Data/datasets/nlp/ucanr_nlp_dataset_lenient.parquet"
-# os.environ["PASS_PARQ"]    = "s3://capstone-plant-data/Capstone_Data/datasets/nlp/ucanr_nlp_passages.parquet"
-# os.environ["DETAILS_PARQ"] = "s3://capstone-plant-data/Capstone_Data/parsed/ucanr_details.parquet"
-#
-# Optional NLP classifier (SageMaker endpoint) and label map:
-# os.environ["NLP_ENDPOINT"]     = "your-nlp-endpoint"
-# os.environ["NLP_LABELS_JSON"]  = "s3://capstone-plant-data/Capstone_Data/models/nlp/labels.json"
 
 import streamlit as st
 from PIL import Image
 
 
 import os
-# ---- Point recommender to data 
+#Point recommender to data 
 os.environ["LENIENT_PARQ"] = "s3://capstone-plant-data/Capstone_Data/nlp/recs_model/ucanr_nlp_dataset.parquet"
 os.environ["PASS_PARQ"]    = "s3://capstone-plant-data/Capstone_Data/datasets/nlp/ucanr_nlp_passages.parquet"
 os.environ["DETAILS_PARQ"] = "s3://capstone-plant-data/Capstone_Data/reference/ucanr/ucanr_details.parquet"
@@ -51,7 +37,7 @@ try:
 except Exception as e:
     st.error(f"Failed to load recommender data: {e}")
 
-# ------------- helpers -------------
+# helpers
 def render_recs(rows):
     if not rows:
         st.warning("No recommendations found.")
@@ -68,14 +54,13 @@ def render_recs(rows):
         st.write(r.get("management_snippet", "(no text)"))
         st.divider()
 
-# ------------- UI -------------
+# UI
 tab_text, tab_disease, tab_image = st.tabs(
     ["Text → Recommend", "Disease → Recommend", "Image Diagnosis"]
 )
 
-# -------------------------
+
 # Text → Recommend (NLP endpoint if set; fuzzy fallback otherwise)
-# -------------------------
 with tab_text:
     st.subheader("Describe the problem")
     text = st.text_area("Example: 'leaf has black spots on rose leaves'", value="")
@@ -96,9 +81,8 @@ with tab_text:
             st.error(f"Text analysis error: {e}")
             st.exception(e)
 
-# -------------------------
-# Disease → Recommend (direct)
-# -------------------------
+
+# Disease → Recommend 
 with tab_disease:
     st.subheader("Recommend by disease")
     col1, col2, col3 = st.columns([1,1,1])
@@ -117,9 +101,8 @@ with tab_disease:
             st.error(f"Recommender error: {e}")
             st.exception(e)
 
-# -------------------------
-# Image Diagnosis (keeps your models_service flow)
-# -------------------------
+
+# Image Diagnosis 
 with tab_image:
     st.subheader("Image-based diagnosis")
     uploaded = st.file_uploader("Upload a leaf photo", type=["jpg", "jpeg", "png"])
