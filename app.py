@@ -22,6 +22,14 @@ os.environ.setdefault("TRANSFORMERS_NO_TF", "1")
 import streamlit as st
 from PIL import Image
 
+
+import os
+# ---- Point recommender to data 
+os.environ["LENIENT_PARQ"] = "s3://capstone-plant-data/Capstone_Data/nlp/recs_model/ucanr_nlp_dataset.parquet"
+os.environ["PASS_PARQ"]    = "s3://capstone-plant-data/Capstone_Data/datasets/nlp/ucanr_nlp_passages.parquet"
+os.environ["DETAILS_PARQ"] = "s3://capstone-plant-data/Capstone_Data/reference/ucanr/ucanr_details.parquet"
+
+
 import recommender as reco
 # handy names
 humanize = reco.humanize
