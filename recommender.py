@@ -1,7 +1,7 @@
-# recommender.py — Streamlit-ready recommender + optional NLP classify
+# recommender.py for Streamlit- ready recommender + NLP 
 # - Lazy loads data (fast app start)
 # - Reads from S3
-# - Optional SageMaker NLP endpoint for text->disease; fuzzy fallback if absent
+# - SageMaker NLP endpoint for text->disease; fuzzy fallback if absent
 # - Friendly errors for Streamlit
 
 import os, re, io, json, typing as T
@@ -588,6 +588,7 @@ def recommend_from_text(text: str, host_hint: str | None = None, k: int = 1) -> 
     # Pick the best disease and recommend
     top_label = pairs[0][0]
     return recommend_for_disease(top_label, host_hint=host_hint, k=k)
+
 
 
 
